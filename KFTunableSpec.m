@@ -87,7 +87,7 @@ static UIImage *CalloutArrowImage();
 
 static NSString *CamelCaseToSpaces(NSString *camelCaseString) {
     return [camelCaseString stringByReplacingOccurrencesOfString:@"([a-z])([A-Z])" withString:@"$1 $2" options:NSRegularExpressionSearch range:NSMakeRange(0, [camelCaseString length])];
-
+    
 }
 
 - (NSString *)label {
@@ -135,7 +135,7 @@ static NSString *CamelCaseToSpaces(NSString *camelCaseString) {
         [bezelView addSubview:label];
         [bezelView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-16-[label]-16-|" options:0 metrics:nil views:views]];
         [bezelView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-7-[label]-7-|" options:0 metrics:nil views:views]];
-
+        
         [self addSubview:bezelView];
         [self addSubview:arrowView];
         [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[bezelView]|" options:0 metrics:nil views:views]];
@@ -184,7 +184,7 @@ static NSString *CamelCaseToSpaces(NSString *camelCaseString) {
         UISlider *slider = [[UISlider alloc] init];
         _KFCalloutView *callout = [[_KFCalloutView alloc] init];
         NSDictionary *views = NSDictionaryOfVariableBindings(slider, callout);
-
+        
         [self setSlider:slider];
         [slider setTranslatesAutoresizingMaskIntoConstraints:NO];
         [container addSubview:slider];
@@ -192,19 +192,19 @@ static NSString *CamelCaseToSpaces(NSString *camelCaseString) {
         [container addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[slider]-0-|" options:0 metrics:nil views:views]];
         [slider addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"[slider(>=300@720)]" options:0 metrics:nil views:views]];
         [slider addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[slider(>=25@750)]" options:0 metrics:nil views:views]];
-
+        
         [slider setMinimumValue:[[self sliderMinValue] doubleValue]];
         [slider setMaximumValue:[[self sliderMaxValue] doubleValue]];
         [self withOwner:self maintain:^(id owner, id objValue) { [slider setValue:[objValue doubleValue]]; }];
         [slider addTarget:self action:@selector(takeSliderValue:) forControlEvents:UIControlEventValueChanged];
-
+        
         [callout setTranslatesAutoresizingMaskIntoConstraints:NO];
         [container addSubview:callout];
         [container addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[callout]-3-[slider]" options:0 metrics:nil views:views]];
         [self setCalloutXCenter:[NSLayoutConstraint constraintWithItem:callout attribute:NSLayoutAttributeCenterX relatedBy:NSLayoutRelationEqual toItem:container attribute:NSLayoutAttributeLeft multiplier:1 constant:0]];
         [container addConstraint:[self calloutXCenter]];
         [callout setAlpha:0];
-
+        
         [self withOwner:self maintain:^(id owner, id objValue) { [[callout label] setText:[NSString stringWithFormat:@"%.2f", [objValue doubleValue]]]; }];
         [slider addTarget:self action:@selector(showCallout:) forControlEvents:UIControlEventTouchDown];
         [slider addTarget:self action:@selector(updateCalloutXCenter:) forControlEvents:UIControlEventValueChanged];
@@ -305,6 +305,126 @@ static NSString *CamelCaseToSpaces(NSString *camelCaseString) {
 
 @end
 
+@interface _KFStepperSpecItem : _KFSpecItem
+@property (nonatomic) NSNumber *stepperMinValue;
+@property (nonatomic) NSNumber *stepperMaxValue;
+@property (nonatomic) NSNumber *stepperStepValue;
+@property UIView *container;
+@property UIStepper *stepper;
+@property NSString *valueFormatString;
+@end
+
+@implementation _KFStepperSpecItem
+
++ (NSArray *)propertiesForJSONRepresentation {
+    static NSArray *sProps;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sProps = [[super propertiesForJSONRepresentation] arrayByAddingObjectsFromArray:@[@"stepperValue", @"stepperMinValue", @"stepperMaxValue", @"stepperStepValue"]];
+    });
+    return sProps;
+}
+
+- (id)initWithJSONRepresentation:(NSDictionary *)json {
+    if (json[@"stepperValue"] == nil) {
+        return nil;
+    } else {
+        return [super initWithJSONRepresentation:json];
+    }
+}
+
+- (UIView *)tuningView {
+    
+    if (![self container]) {
+        UIView *container = [[UIView alloc] init];
+        UIStepper *stepper = [[UIStepper alloc] init];
+        UILabel *label = [[UILabel alloc] init];
+        [label setTextColor:[UIColor whiteColor]];
+        [label setFont:[UIFont boldSystemFontOfSize:[[label font] pointSize]]];
+        [label setTextAlignment:NSTextAlignmentCenter];
+        
+        NSUInteger numberOfDecimalPlaces = 0;
+        NSUInteger locationOfDecimalPointInStepValue = [[[self stepperStepValue] stringValue] rangeOfString:@"."].location;
+        NSUInteger locationOfDecimalPointInDefaultValue = [[[self defaultValue] stringValue] rangeOfString:@"."].location;
+        NSUInteger locationOfDecimalPointInMinValue = [[[self stepperMinValue] stringValue] rangeOfString:@"."].location;
+        NSUInteger locationOfDecimalPointInMaxValue = [[[self stepperMaxValue] stringValue] rangeOfString:@"."].location;
+        
+        if (locationOfDecimalPointInStepValue != NSNotFound) {
+            numberOfDecimalPlaces = MAX([[[self stepperStepValue] stringValue] length] - locationOfDecimalPointInStepValue - 1, numberOfDecimalPlaces);
+        }
+        if (locationOfDecimalPointInDefaultValue != NSNotFound) {
+            numberOfDecimalPlaces = MAX([[[self defaultValue] stringValue] length] - locationOfDecimalPointInDefaultValue - 1, numberOfDecimalPlaces);
+        }
+        if (locationOfDecimalPointInMinValue != NSNotFound) {
+            numberOfDecimalPlaces = MAX([[[self stepperMinValue] stringValue] length] - locationOfDecimalPointInMinValue - 1, numberOfDecimalPlaces);
+        }
+        if (locationOfDecimalPointInMaxValue != NSNotFound) {
+            numberOfDecimalPlaces = MAX([[[self stepperMaxValue] stringValue] length] - locationOfDecimalPointInMaxValue - 1, numberOfDecimalPlaces);
+        }
+        
+        NSString *valueFormatString = [NSString stringWithFormat:@"%%.%@f",
+                                       @(numberOfDecimalPlaces)];
+        
+        [self setStepper:stepper];
+        [self setValueFormatString:valueFormatString];
+        
+        [container addSubview:stepper];
+        [container addSubview:label];
+        
+        NSDictionary *views = NSDictionaryOfVariableBindings(stepper, label);
+        [stepper setTranslatesAutoresizingMaskIntoConstraints:NO];
+        [label setTranslatesAutoresizingMaskIntoConstraints:NO];
+        
+        [container addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[label]-[stepper]-0-|" options:0 metrics:nil views:views]];
+        [container addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[stepper]-0-|" options:0 metrics:nil views:views]];
+        [container addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[label]-0-|" options:0 metrics:nil views:views]];
+        [label addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"[label(>=25@780)]" options:0 metrics:nil views:views]];
+        [stepper addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"[stepper(>=300@720)]" options:0 metrics:nil views:views]];
+        [stepper addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[stepper(>=25@750)]" options:0 metrics:nil views:views]];
+        
+        [stepper setMinimumValue:[[self stepperMinValue] doubleValue]];
+        [stepper setMaximumValue:[[self stepperMaxValue] doubleValue]];
+        [stepper setStepValue:[[self stepperStepValue] doubleValue]];
+        [stepper addTarget:self action:@selector(takeStepperValue:) forControlEvents:UIControlEventValueChanged];
+        [self withOwner:self maintain:^(id owner, id objValue) {
+            [stepper setValue:[objValue doubleValue]];
+        }];
+        
+        [self withOwner:self maintain:^(id owner, id objValue) {
+            [label setText:[NSString stringWithFormat:[self valueFormatString], [objValue doubleValue]]];
+        }];
+        
+        [self setContainer:container];
+    }
+    return [self container];
+}
+
+- (void)takeStepperValue:(UIStepper *)stepper {
+    [self setStepperValue:@([stepper value])];
+}
+
+- (id)stepperValue {
+    return [self objectValue];
+}
+
+- (NSNumber *)stepperMinValue {
+    return _stepperMinValue ?: @0;
+}
+
+- (NSNumber *)stepperMaxValue {
+    return _stepperMaxValue ?: @([[self defaultValue] doubleValue]*2);
+}
+
+- (NSNumber *)stepperStepValue {
+    return _stepperStepValue ?: @([[self stepperMinValue] doubleValue] - [[self stepperMinValue] doubleValue] / 2.0f);
+}
+
+- (void)setStepperValue:(id)stepperValue {
+    [self setObjectValue:stepperValue];
+}
+
+@end
+
 @interface HitTransparentWindow : UIWindow
 @end
 @implementation HitTransparentWindow
@@ -366,11 +486,12 @@ static NSMutableDictionary *sSpecsByName;
         NSError *error = nil;
         NSArray *specItemReps = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&error];
         NSAssert(specItemReps != nil, @"error decoding %@.json: %@", name, error);
-
+        
         for (NSDictionary *rep in specItemReps) {
             _KFSpecItem *specItem = nil;
             specItem = specItem ?: [[_KFSilderSpecItem alloc] initWithJSONRepresentation:rep];
             specItem = specItem ?: [[_KFSwitchSpecItem alloc] initWithJSONRepresentation:rep];
+            specItem = specItem ?: [[_KFStepperSpecItem alloc] initWithJSONRepresentation:rep];
             
             if (specItem) {
                 [_KFSpecItems addObject:specItem];
@@ -476,7 +597,7 @@ static NSMutableDictionary *sSpecsByName;
     
     // We would like to add a close button on the top left corner of the mainView
     // It sticks out a bit from the mainView. In order to have the part that sticks out stay tappable, we make a contentView that completely contains the closeButton and the mainView.
-
+    
     UIButton *closeButton = [[UIButton alloc] init];
     [closeButton addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
     [closeButton setImage:CloseImage() forState:UIControlStateNormal];
@@ -496,11 +617,11 @@ static NSMutableDictionary *sSpecsByName;
     // center mainView in contentView
     [contentView addConstraint:[NSLayoutConstraint constraintWithItem:mainView attribute:NSLayoutAttributeCenterX relatedBy:NSLayoutRelationEqual toItem:contentView attribute:NSLayoutAttributeCenterX multiplier:1 constant:0]];
     [contentView addConstraint:[NSLayoutConstraint constraintWithItem:mainView attribute:NSLayoutAttributeCenterY relatedBy:NSLayoutRelationEqual toItem:contentView attribute:NSLayoutAttributeCenterY multiplier:1 constant:0]];
-
+    
     // align edge of close button with contentView
     [contentView addConstraint:[NSLayoutConstraint constraintWithItem:closeButton attribute:NSLayoutAttributeLeading relatedBy:NSLayoutRelationEqual toItem:contentView attribute:NSLayoutAttributeLeading multiplier:1 constant:0]];
     [contentView addConstraint:[NSLayoutConstraint constraintWithItem:closeButton attribute:NSLayoutAttributeTop relatedBy:NSLayoutRelationEqual toItem:contentView attribute:NSLayoutAttributeTop multiplier:1 constant:0]];
-
+    
     UIViewController *viewController = [[UIViewController alloc] init];
     [viewController setView:contentView];
     return viewController;
@@ -515,7 +636,7 @@ CGPoint RectCenter(CGRect rect) {
 }
 
 - (void)setControlsAreVisible:(BOOL)flag {
-    if (flag && ![self window]) {        
+    if (flag && ![self window]) {
         UIViewController *viewController = [self makeViewController];
         UIView *contentView = [viewController view];
         if ([self name]) {
